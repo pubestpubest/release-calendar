@@ -198,24 +198,27 @@ export const useSprintStore = create<StoreState>()((set, get) => ({
   },
 
   addTask({ ticket, title, md }) {
-    set((s) => {
-      const dayCount = Math.max(workingDays(s.sprint.start, s.sprint.end).length, 1)
-      const id = uid('t')
-      const cursor: Record<string, number> = {}
-      ROLES.forEach((r) => { cursor[r.key] = laneEnd(s.blocks, r.key) })
-      const newBlocks: Block[] = []
-      ROLES.forEach((r) => {
-        parseMandays(md[r.key]).forEach((m) => {
-          const start = Math.max(0, Math.min(cursor[r.key], Math.max(0, dayCount - m)))
-          newBlocks.push({ id: uid('b'), taskId: id, role: r.key, mandays: m, start })
-          cursor[r.key] = start + m
-        })
+    const s = get()
+    const dayCount = Math.max(workingDays(s.sprint.start, s.sprint.end).length, 1)
+    const id = uid('t')
+    const cursor: Record<string, number> = {}
+    ROLES.forEach((r) => { cursor[r.key] = laneEnd(s.blocks, r.key) })
+    const newBlocks: Block[] = []
+    ROLES.forEach((r) => {
+      parseMandays(md[r.key]).forEach((m) => {
+        const start = Math.max(0, Math.min(cursor[r.key], Math.max(0, dayCount - m)))
+        newBlocks.push({ id: uid('b'), taskId: id, role: r.key, mandays: m, start })
+        cursor[r.key] = start + m
       })
-      const task: Task = { id, ticket, title }
-      dbUpsertTask(task, s.sprint.id)
-      newBlocks.forEach((b) => dbUpsertBlock(b))
-      return { tasks: { ...s.tasks, [id]: task }, blocks: [...s.blocks, ...newBlocks] }
     })
+    const task: Task = { id, ticket, title }
+    const sprintId = s.sprint.id
+    set((prev) => ({ tasks: { ...prev.tasks, [id]: task }, blocks: [...prev.blocks, ...newBlocks] }))
+    // task must exist in DB before blocks (FK constraint) — await in sequence
+    ;(async () => {
+      await dbUpsertTask(task, sprintId)
+      await Promise.all(newBlocks.map(dbUpsertBlock))
+    })()
   },
 
   deleteTask(id) {
