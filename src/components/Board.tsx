@@ -174,7 +174,15 @@ export default function Board({
       }
 
   return (
-    <div style={{ overflow: 'auto', height: '100%', background: '#fff' }}>
+    <div
+      style={{ overflow: 'auto', height: '100%', background: '#fff' }}
+      onPointerMove={handlePointerMove}
+      onPointerUp={() => {
+        const d = drag.current
+        const taskId = d ? (blocks.find((bb) => bb.id === d.id)?.taskId ?? null) : null
+        handlePointerUp(taskId)
+      }}
+    >
       <div style={{ minWidth: ROW_HEADER_W + timelineW, position: 'relative' }}>
 
         {/* day header */}
@@ -247,15 +255,7 @@ export default function Board({
                   </div>
                 </div>
                 {/* track */}
-                <div
-                  onPointerMove={handlePointerMove}
-                  onPointerUp={() => {
-                    const d = drag.current
-                    const taskId = d ? (blocks.find((bb) => bb.id === d.id)?.taskId ?? null) : null
-                    handlePointerUp(taskId)
-                  }}
-                  style={{ position: 'relative', width: timelineW, ...trackBg }}
-                >
+                <div style={{ position: 'relative', flex: '0 0 auto', width: timelineW, ...trackBg }}>
                   {showToday && (
                     <div style={{ position: 'absolute', left: todayIndex * dayWidth, top: 0, bottom: 0, width: 0, borderLeft: '2px dashed var(--coral)', zIndex: 1 }} />
                   )}

@@ -206,9 +206,9 @@ export default function TaskPanel({
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', background: 'var(--cream-deep)', borderLeft: '4px solid var(--ink)' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden', background: 'var(--cream-deep)', borderLeft: '4px solid var(--ink)' }}>
       {/* sprint settings */}
-      <div style={{ padding: '16px 18px', borderBottom: '3px solid var(--ink)', background: 'var(--cream)' }}>
+      <div style={{ flexShrink: 0, padding: '16px 18px', borderBottom: '3px solid var(--ink)', background: 'var(--cream)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}>
           <Icon name="settings" size={17} />
           <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16, color: 'var(--ink)' }}>Sprint</span>
@@ -232,7 +232,7 @@ export default function TaskPanel({
       </div>
 
       {/* add task */}
-      <div style={{ padding: '16px 18px', borderBottom: '3px solid var(--ink)' }}>
+      <div style={{ flexShrink: 0, padding: '16px 18px', borderBottom: '3px solid var(--ink)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 12 }}>
           <Icon name="plus" size={18} />
           <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16, color: 'var(--ink)' }}>New task</span>
@@ -241,7 +241,7 @@ export default function TaskPanel({
       </div>
 
       {/* backlog */}
-      <div style={{ flex: 1, overflowY: 'auto', padding: '14px 18px' }}>
+      <div style={{ flex: 1, minHeight: 0, overflowY: 'auto', padding: '14px 18px' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
           <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 16, color: 'var(--ink)', whiteSpace: 'nowrap' }}>
             Backlog <span style={{ color: 'var(--ink-faint)' }}>· {taskIds.length}</span>
