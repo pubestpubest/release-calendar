@@ -11,6 +11,8 @@ import type { Block, Task, Role } from '@/lib/types'
 
 type Viz = 'calendar' | 'gantt' | 'combined'
 
+const DAYS_PER_WEEK = 5
+
 interface BlockProps {
   entry: LayoutItem
   task: Task
@@ -108,8 +110,11 @@ export default function Board({
   selectedTaskId, onSelectTask, onMoveBlock, onFinishMove, onDeleteBlock, todayIndex,
 }: BoardProps) {
   const drag = useRef<{ id: string; startX: number; orig: number; moved: boolean; mandays: number; lastRaw: number } | null>(null)
-  const timelineW = dayCount * dayWidth
+  const timelineW  = dayCount * dayWidth
   const blockRadius = viz === 'calendar' ? 11 : 999
+  const weeksCount = Math.max(1, Math.ceil(dayCount / DAYS_PER_WEEK))
+  const showAllLinks = viz !== 'calendar'
+  const showToday  = todayIndex >= 0 && todayIndex < dayCount
 
   const handlePointerDown = (e: React.PointerEvent, b: Block) => {
     if (e.button === 1 || e.button === 2) return
@@ -134,48 +139,20 @@ export default function Board({
     drag.current = null
   }
 
-  // connector dots between blocks of the same task
-  const pointsForTask = (taskId: string) => {
-    const pts: { x: number; y: number }[] = []
-    ROLES.forEach((role) => {
-      layout.byRole[role.key].items.forEach((it) => {
-        if (it.block.taskId === taskId) {
-          pts.push({
-            x: (it.block.start + it.block.mandays / 2) * dayWidth,
-            y: layout.laneTops[role.key] + LANE_PAD + it.subrow * (ROW_H + ROW_GAP) + ROW_H / 2,
-          })
-        }
-      })
-    })
-    return pts.sort((a, b) => a.y - b.y || a.x - b.x)
-  }
   const segsFrom = (pts: { x: number; y: number }[]) => {
     const out: [{ x: number; y: number }, { x: number; y: number }][] = []
     for (let i = 0; i < pts.length - 1; i++) out.push([pts[i], pts[i + 1]])
     return out
   }
 
-  const showAllLinks = viz !== 'calendar'
-  const faintLinks: { tid: string; segs: ReturnType<typeof segsFrom> }[] = []
-  if (showAllLinks) {
-    const taskIds = [...new Set(blocks.map((b) => b.taskId))]
-    taskIds.forEach((tid) => {
-      if (tid === selectedTaskId) return
-      const pts = pointsForTask(tid)
-      if (pts.length > 1) faintLinks.push({ tid, segs: segsFrom(pts) })
-    })
-  }
-  const selPts  = selectedTaskId ? pointsForTask(selectedTaskId) : []
-  const selSegs = segsFrom(selPts)
-  const showToday = todayIndex >= 0 && todayIndex < dayCount
-
-  const trackBg: React.CSSProperties = viz === 'calendar'
-    ? {
-        backgroundImage: `repeating-linear-gradient(90deg, rgba(33,27,59,0.16) 0 1px, transparent 1px ${dayWidth}px),repeating-linear-gradient(90deg, var(--cream-deep) 0 ${dayWidth}px, rgba(255,255,255,0) ${dayWidth}px ${dayWidth * 2}px)`,
-      }
-    : {
-        backgroundImage: `repeating-linear-gradient(90deg, rgba(33,27,59,0.10) 0 1px, transparent 1px ${dayWidth}px)`,
-      }
+  const trackBg = (): React.CSSProperties =>
+    viz === 'calendar'
+      ? {
+          backgroundImage: `repeating-linear-gradient(90deg, rgba(33,27,59,0.16) 0 1px, transparent 1px ${dayWidth}px),repeating-linear-gradient(90deg, var(--cream-deep) 0 ${dayWidth}px, rgba(255,255,255,0) ${dayWidth}px ${dayWidth * 2}px)`,
+        }
+      : {
+          backgroundImage: `repeating-linear-gradient(90deg, rgba(33,27,59,0.10) 0 1px, transparent 1px ${dayWidth}px)`,
+        }
 
   return (
     <div
@@ -187,106 +164,178 @@ export default function Board({
         handlePointerUp(taskId)
       }}
     >
-      <div style={{ minWidth: ROW_HEADER_W + timelineW, position: 'relative' }}>
+      {Array.from({ length: weeksCount }).map((_, w) => {
+        const weekStart = w * DAYS_PER_WEEK
+        const weekDays  = days.slice(weekStart, weekStart + DAYS_PER_WEEK)
+        if (weekDays.length === 0) return null
+        const weekTrackW = weekDays.length * dayWidth
 
-        {/* day header */}
-        <div style={{ display: 'flex', position: 'sticky', top: 0, zIndex: 6 }}>
-          <div style={{
-            width: ROW_HEADER_W, flex: '0 0 auto', position: 'sticky', left: 0, zIndex: 7,
-            background: 'var(--ink)', color: '#fff', borderRight: '4px solid var(--ink)', borderBottom: '3px solid var(--ink)',
-            display: 'flex', alignItems: 'center', gap: 7, padding: '0 14px', height: 58,
-          }}>
-            <Icon name="calendar" size={18} />
-            <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 14 }}>roles</span>
-          </div>
-          <div style={{ position: 'relative', width: timelineW, background: 'var(--cream)', borderBottom: '3px solid var(--ink)', display: 'flex' }}>
-            {days.map((d, i) => {
-              const isToday  = i === todayIndex
-              const weekStart = i % 5 === 0 && i !== 0
-              return (
-                <div key={i} style={{
-                  width: dayWidth, flex: '0 0 auto', height: 58,
-                  borderLeft: weekStart ? '3px solid var(--ink)' : '1px solid rgba(33,27,59,0.16)',
-                  display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                  background: isToday ? 'var(--yellow-100)' : 'transparent',
-                }}>
-                  <span style={{ fontFamily: 'var(--font-hand)', fontSize: 15, color: isToday ? 'var(--yellow-600)' : 'var(--ink-faint)', lineHeight: 1 }}>{DOW[d.getDay()].toLowerCase()}</span>
-                  <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 17, color: 'var(--ink)', lineHeight: 1.1 }}>{d.getDate()}</span>
-                  <span style={{ fontFamily: 'var(--font-body)', fontWeight: 700, fontSize: 10, color: 'var(--ink-faint)', textTransform: 'uppercase', letterSpacing: 0.4 }}>{MON[d.getMonth()]}</span>
-                </div>
-              )
-            })}
-          </div>
-        </div>
+        /* --- connectors for this week section --- */
+        const pointsForTaskInWeek = (taskId: string) => {
+          const pts: { x: number; y: number }[] = []
+          ROLES.forEach((role) => {
+            layout.byRole[role.key].items.forEach((it) => {
+              if (it.block.taskId !== taskId) return
+              const b = it.block
+              if (b.start >= weekStart + DAYS_PER_WEEK || b.start + b.mandays <= weekStart) return
+              const midDay = (
+                Math.max(b.start, weekStart) + Math.min(b.start + b.mandays, weekStart + DAYS_PER_WEEK)
+              ) / 2
+              pts.push({
+                x: (midDay - weekStart) * dayWidth,
+                y: layout.laneTops[role.key] + LANE_PAD + it.subrow * (ROW_H + ROW_GAP) + ROW_H / 2,
+              })
+            })
+          })
+          return pts.sort((a, b) => a.y - b.y || a.x - b.x)
+        }
 
-        {/* lanes */}
-        <div style={{ position: 'relative' }}>
-          {/* connector overlay */}
-          {(selectedTaskId || faintLinks.length > 0) && (
-            <svg width={timelineW} height={layout.totalHeight}
-              style={{ position: 'absolute', left: ROW_HEADER_W, top: 0, pointerEvents: 'none', zIndex: 5, overflow: 'visible' }}>
-              {faintLinks.map((fl) => fl.segs.map((seg, i) => (
-                <line key={fl.tid + i} x1={seg[0].x} y1={seg[0].y} x2={seg[1].x} y2={seg[1].y}
-                  stroke="var(--ink)" strokeWidth={2} strokeDasharray="1 7" strokeLinecap="round" opacity={0.28} />
-              )))}
-              {selSegs.map((seg, i) => (
-                <line key={'s' + i} x1={seg[0].x} y1={seg[0].y} x2={seg[1].x} y2={seg[1].y}
-                  stroke="var(--ink)" strokeWidth={2.5} strokeDasharray="2 6" strokeLinecap="round" />
-              ))}
-              {selPts.map((p, i) => (
-                <circle key={'d' + i} cx={p.x} cy={p.y} r={4} fill="#fff" stroke="var(--ink)" strokeWidth={2.5} />
-              ))}
-            </svg>
-          )}
+        const weekFaintLinks: { tid: string; segs: ReturnType<typeof segsFrom> }[] = []
+        if (showAllLinks) {
+          const tidsHere = [...new Set(
+            blocks
+              .filter((b) => b.start < weekStart + DAYS_PER_WEEK && b.start + b.mandays > weekStart && b.taskId !== selectedTaskId)
+              .map((b) => b.taskId),
+          )]
+          tidsHere.forEach((tid) => {
+            const pts = pointsForTaskInWeek(tid)
+            if (pts.length > 1) weekFaintLinks.push({ tid, segs: segsFrom(pts) })
+          })
+        }
+        const weekSelPts  = selectedTaskId ? pointsForTaskInWeek(selectedTaskId) : []
+        const weekSelSegs = segsFrom(weekSelPts)
+        const hasConnectors = (selectedTaskId && weekSelSegs.length > 0) || weekFaintLinks.length > 0
 
-          {ROLES.map((role) => {
-            const lane = layout.byRole[role.key]
-            return (
-              <div key={role.key} style={{ display: 'flex', height: lane.height, borderBottom: '2px solid var(--ink)' }}>
-                {/* lane label */}
-                <div style={{
-                  width: ROW_HEADER_W, flex: '0 0 auto', position: 'sticky', left: 0, zIndex: 4,
-                  background: role.tint, borderRight: '4px solid var(--ink)',
-                  display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6, padding: '0 14px',
-                }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{
-                      width: 30, height: 30, borderRadius: 9, background: role.hex, border: '3px solid var(--ink)',
-                      color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, boxShadow: '2px 2px 0 var(--ink)',
-                    }}>{role.short}</span>
-                    <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15, color: 'var(--ink)' }}>{role.label}</span>
-                  </div>
-                </div>
-                {/* track */}
-                <div style={{ position: 'relative', flex: '0 0 auto', width: timelineW, ...trackBg }}>
-                  {showToday && (
-                    <div style={{ position: 'absolute', left: todayIndex * dayWidth, top: 0, bottom: 0, width: 0, borderLeft: '2px dashed var(--coral)', zIndex: 1 }} />
-                  )}
-                  {Array.from({ length: Math.max(0, Math.floor((dayCount - 1) / 5)) }).map((_, k) => (
-                    <div key={'wk' + k} style={{ position: 'absolute', left: (k + 1) * 5 * dayWidth, top: 0, bottom: 0, width: 0, borderLeft: '3px solid var(--ink)', opacity: 0.5, zIndex: 0 }} />
-                  ))}
-                  {lane.items.map((entry) => {
-                    const task = tasks[entry.block.taskId] ?? { id: '', ticket: '?', title: '' }
-                    const sel = !!selectedTaskId && entry.block.taskId === selectedTaskId
-                    const dim = !!selectedTaskId && entry.block.taskId !== selectedTaskId
-                    return (
-                      <BlockEl key={entry.block.id} entry={entry} task={task} role={role}
-                        dayWidth={dayWidth} radius={blockRadius} selected={sel} dimmed={dim}
-                        onPointerDown={handlePointerDown} onDelete={onDeleteBlock} />
-                    )
-                  })}
-                  {lane.items.length === 0 && (
-                    <div style={{ position: 'absolute', left: 14, top: '50%', transform: 'translateY(-50%)', fontFamily: 'var(--font-hand)', fontSize: 18, color: 'var(--ink-faint)' }}>
-                      nothing planned yet…
-                    </div>
-                  )}
-                </div>
+        return (
+          <div key={w} style={{ minWidth: ROW_HEADER_W + weekTrackW }}>
+
+            {/* ---- day header (sticky per week) ---- */}
+            <div style={{ display: 'flex', position: 'sticky', top: 0, zIndex: 6 }}>
+              <div style={{
+                width: ROW_HEADER_W, flex: '0 0 auto',
+                position: 'sticky', left: 0, top: 0, zIndex: 7,
+                background: 'var(--ink)', color: '#fff',
+                borderRight: '4px solid var(--ink)', borderBottom: '3px solid var(--ink)',
+                display: 'flex', alignItems: 'center', gap: 7, padding: '0 14px', height: 58,
+              }}>
+                <Icon name="calendar" size={18} />
+                <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 14 }}>
+                  {weeksCount > 1 ? `week ${w + 1}` : 'roles'}
+                </span>
               </div>
-            )
-          })}
-        </div>
-      </div>
+              <div style={{ position: 'relative', width: weekTrackW, background: 'var(--cream)', borderBottom: '3px solid var(--ink)', display: 'flex' }}>
+                {weekDays.map((d, i) => {
+                  const isToday = weekStart + i === todayIndex
+                  return (
+                    <div key={i} style={{
+                      width: dayWidth, flex: '0 0 auto', height: 58,
+                      borderLeft: i > 0 ? '1px solid rgba(33,27,59,0.16)' : 'none',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+                      background: isToday ? 'var(--yellow-100)' : 'transparent',
+                    }}>
+                      <span style={{ fontFamily: 'var(--font-hand)', fontSize: 15, color: isToday ? 'var(--yellow-600)' : 'var(--ink-faint)', lineHeight: 1 }}>{DOW[d.getDay()].toLowerCase()}</span>
+                      <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 17, color: 'var(--ink)', lineHeight: 1.1 }}>{d.getDate()}</span>
+                      <span style={{ fontFamily: 'var(--font-body)', fontWeight: 700, fontSize: 10, color: 'var(--ink-faint)', textTransform: 'uppercase', letterSpacing: 0.4 }}>{MON[d.getMonth()]}</span>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* ---- role lanes ---- */}
+            <div style={{ position: 'relative' }}>
+
+              {/* connector SVG for this week */}
+              {hasConnectors && (
+                <svg width={weekTrackW} height={layout.totalHeight}
+                  style={{ position: 'absolute', left: ROW_HEADER_W, top: 0, pointerEvents: 'none', zIndex: 5, overflow: 'visible' }}>
+                  {weekFaintLinks.map((fl) => fl.segs.map((seg, i) => (
+                    <line key={fl.tid + i} x1={seg[0].x} y1={seg[0].y} x2={seg[1].x} y2={seg[1].y}
+                      stroke="var(--ink)" strokeWidth={2} strokeDasharray="1 7" strokeLinecap="round" opacity={0.28} />
+                  )))}
+                  {weekSelSegs.map((seg, i) => (
+                    <line key={'s' + i} x1={seg[0].x} y1={seg[0].y} x2={seg[1].x} y2={seg[1].y}
+                      stroke="var(--ink)" strokeWidth={2.5} strokeDasharray="2 6" strokeLinecap="round" />
+                  ))}
+                  {weekSelPts.map((p, i) => (
+                    <circle key={'d' + i} cx={p.x} cy={p.y} r={4} fill="#fff" stroke="var(--ink)" strokeWidth={2.5} />
+                  ))}
+                </svg>
+              )}
+
+              {ROLES.map((role) => {
+                const lane = layout.byRole[role.key]
+                const weekItems = lane.items.filter((entry) => {
+                  const b = entry.block
+                  return b.start < weekStart + DAYS_PER_WEEK && b.start + b.mandays > weekStart
+                })
+
+                return (
+                  <div key={role.key} style={{ display: 'flex', height: lane.height, borderBottom: '2px solid var(--ink)' }}>
+
+                    {/* lane label */}
+                    <div style={{
+                      width: ROW_HEADER_W, flex: '0 0 auto',
+                      position: 'sticky', left: 0, zIndex: 4,
+                      background: role.tint, borderRight: '4px solid var(--ink)',
+                      display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: 6, padding: '0 14px',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{
+                          width: 30, height: 30, borderRadius: 9, background: role.hex, border: '3px solid var(--ink)',
+                          color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 12, boxShadow: '2px 2px 0 var(--ink)',
+                        }}>{role.short}</span>
+                        <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15, color: 'var(--ink)' }}>{role.label}</span>
+                      </div>
+                    </div>
+
+                    {/* track — clipped to this week, inner div spans full timeline */}
+                    <div style={{ position: 'relative', overflow: 'hidden', flex: '0 0 auto', width: weekTrackW }}>
+                      <div style={{
+                        position: 'absolute', left: -weekStart * dayWidth,
+                        width: timelineW, height: '100%',
+                        ...trackBg(),
+                      }}>
+                        {showToday && todayIndex >= weekStart && todayIndex < weekStart + DAYS_PER_WEEK && (
+                          <div style={{ position: 'absolute', left: todayIndex * dayWidth, top: 0, bottom: 0, width: 0, borderLeft: '2px dashed var(--coral)', zIndex: 1 }} />
+                        )}
+                        {weekItems.map((entry) => {
+                          const task = tasks[entry.block.taskId] ?? { id: '', ticket: '?', title: '' }
+                          const sel = !!selectedTaskId && entry.block.taskId === selectedTaskId
+                          const dim = !!selectedTaskId && entry.block.taskId !== selectedTaskId
+                          return (
+                            <BlockEl key={entry.block.id} entry={entry} task={task} role={role}
+                              dayWidth={dayWidth} radius={blockRadius} selected={sel} dimmed={dim}
+                              onPointerDown={handlePointerDown} onDelete={onDeleteBlock} />
+                          )
+                        })}
+                        {weekItems.length === 0 && (
+                          <div style={{
+                            position: 'absolute',
+                            left: weekStart * dayWidth + 14,
+                            top: '50%', transform: 'translateY(-50%)',
+                            fontFamily: 'var(--font-hand)', fontSize: 18, color: 'var(--ink-faint)',
+                          }}>
+                            nothing planned yet…
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* thick separator between week sections */}
+            {w < weeksCount - 1 && (
+              <div style={{ height: 6, background: 'var(--ink)' }} />
+            )}
+
+          </div>
+        )
+      })}
     </div>
   )
 }

@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import Icon from './Icon'
-import { ROLES, ROLE_BY_KEY, parseMandays, fmtMd, fmtRange } from '@/lib/helpers'
+import { ROLES, ROLE_BY_KEY, parseMandays, fmtMd, fmtRange, normalizeTicket, ticketUrl } from '@/lib/helpers'
 import type { Block, Task, Sprint, Role } from '@/lib/types'
 
 /* ---- shared mini input ---- */
@@ -69,7 +69,7 @@ function AddTaskForm({ onAdd }: {
     const hasMd = (['FE', 'BE', 'MO'] as Role[]).some((r) => parseMandays(md[r]).length > 0)
     if (!title.trim() && !ticket.trim()) { setErr('Add a ticket or a title.'); return }
     if (!hasMd) { setErr('Add at least one role estimate.'); return }
-    onAdd({ ticket: ticket.trim() || '—', title: title.trim() || 'Untitled', md })
+    onAdd({ ticket: normalizeTicket(ticket) || '—', title: title.trim() || 'Untitled', md })
     setTicket(''); setTitle(''); setMd({ FE: '', BE: '', MO: '' }); setErr('')
   }
 
@@ -140,7 +140,17 @@ function TaskCard({ task, blocks, selected, onSelect, onDelete }: {
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8 }}>
         <div style={{ minWidth: 0, flex: 1 }}>
-          <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 13, color: 'var(--blue)' }}>{task.ticket}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 13, color: 'var(--blue)' }}>{task.ticket}</span>
+            {ticketUrl(task.ticket) && (
+              <a href={ticketUrl(task.ticket)} target="_blank" rel="noopener noreferrer"
+                 onClick={(e) => e.stopPropagation()}
+                 title="Open in Jira"
+                 style={{ color: 'var(--blue)', opacity: 0.6, display: 'flex', alignItems: 'center', flex: '0 0 auto' }}>
+                <Icon name="link" size={12} />
+              </a>
+            )}
+          </div>
           <div style={{ fontFamily: 'var(--font-body)', fontWeight: 700, fontSize: 14, color: 'var(--ink)', lineHeight: 1.2 }}>{task.title}</div>
         </div>
         <button

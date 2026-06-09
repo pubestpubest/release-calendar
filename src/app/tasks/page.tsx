@@ -5,8 +5,8 @@ import Link from 'next/link'
 import Icon from '@/components/Icon'
 import SprintSelector from '@/components/SprintSelector'
 import { useSprintStore } from '@/lib/store'
-import { ROLES, parseMandays, fmtMd } from '@/lib/helpers'
-import type { Role } from '@/lib/types'
+import { ROLES, parseMandays, fmtMd, fmtRange, workingDays, normalizeTicket, ticketUrl, DOW, MON } from '@/lib/helpers'
+import type { Role, Sprint, Task, Block } from '@/lib/types'
 
 /* ---- helpers ---- */
 function roleStr(blocks: { taskId: string; role: string; mandays: number; start: number }[], taskId: string, role: Role) {
@@ -51,6 +51,50 @@ function RoleField({
         transition: 'border-color 120ms, background 120ms',
       }}
     />
+  )
+}
+
+/* ---- TicketField ---- */
+function TicketField({ value, onCommit }: { value: string; onCommit: (v: string) => void }) {
+  const [v, setV] = useState(value)
+  const ref = useRef<HTMLInputElement>(null)
+  useEffect(() => { setV(value) }, [value])
+
+  const commit = () => {
+    const norm = normalizeTicket(v)
+    if (!norm) { setV(value); return }
+    setV(norm)
+    if (norm !== value) onCommit(norm)
+  }
+
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+      <input
+        ref={ref}
+        value={v}
+        onChange={(e) => setV(e.target.value)}
+        onBlur={() => {
+          commit()
+          if (ref.current) { ref.current.style.borderColor = 'transparent'; ref.current.style.background = 'transparent' }
+        }}
+        onFocus={(e) => { e.target.style.borderColor = 'var(--blue)'; e.target.style.background = '#fff' }}
+        onKeyDown={(e) => { if (e.key === 'Enter') ref.current?.blur() }}
+        placeholder="3239"
+        style={{
+          flex: 1, minWidth: 0, border: '2px solid transparent', borderRadius: 8,
+          background: 'transparent', fontFamily: 'var(--font-display)', fontWeight: 700,
+          fontSize: 14, color: 'var(--blue)', padding: '6px 8px', outline: 'none',
+          transition: 'border-color 120ms, background 120ms',
+        }}
+      />
+      {value && value !== '—' && (
+        <a href={ticketUrl(value)} target="_blank" rel="noopener noreferrer"
+           onClick={(e) => e.stopPropagation()} title={`Open ${value} in Jira`}
+           style={{ flex: '0 0 auto', color: 'var(--blue)', display: 'flex', opacity: 0.5 }}>
+          <Icon name="arrowRight" size={13} />
+        </a>
+      )}
+    </div>
   )
 }
 
@@ -129,7 +173,7 @@ function TaskRow({
       onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.background = 'var(--cream)' }}
       onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.background = '#fff' }}
     >
-      <EditText value={task.ticket} onChange={onTicket} placeholder="SM-…" bold color="var(--blue)" size={14} />
+      <TicketField value={task.ticket} onCommit={onTicket} />
       <EditText value={task.title}  onChange={onTitle}  placeholder="Task title…" />
       {ROLES.map((r) => (
         <RoleField
@@ -185,7 +229,7 @@ function AddRow({ onAdd }: { onAdd: (opts: { ticket: string; title: string; md: 
     const current = mdRef.current
     const hasMd = (['FE', 'BE', 'MO'] as Role[]).some((r) => parseMandays(current[r]).length > 0)
     if ((!title.trim() && !ticket.trim()) || !hasMd) return
-    onAdd({ ticket: ticket.trim() || '—', title: title.trim() || 'Untitled', md: current })
+    onAdd({ ticket: normalizeTicket(ticket) || '—', title: title.trim() || 'Untitled', md: current })
     setTicket(''); setTitle('')
     setMd({ FE: '', BE: '', MO: '' })
     mdRef.current = { FE: '', BE: '', MO: '' }
@@ -202,8 +246,9 @@ function AddRow({ onAdd }: { onAdd: (opts: { ticket: string; title: string; md: 
     }}>
       <input
         value={ticket} onChange={(e) => setTicket(e.target.value)}
+        onBlur={() => setTicket((t) => normalizeTicket(t) || t)}
         onKeyDown={(e) => e.key === 'Enter' && submit()}
-        placeholder="SM-…"
+        placeholder="3239"
         style={{ ...inputBase, fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 14, color: 'var(--blue)' }}
       />
       <input
@@ -321,6 +366,70 @@ function SortSelect({ value, onChange }: { value: string; onChange: (v: string) 
   )
 }
 
+/* ---- Google Chat export ---- */
+const ROLE_EMOJI: Record<string, string> = { FE: '🎨', BE: '⚙️', MO: '📱' }
+
+function fmtDay(d: Date): string {
+  return `${DOW[d.getDay()]} ${d.getDate()} ${MON[d.getMonth()]}`
+}
+
+function buildChatMessage(
+  ids: string[],
+  tasks: Record<string, Task>,
+  blocks: Block[],
+  sprint: Sprint,
+  sprintDays: Date[],
+  roleFilter: string,
+): string {
+  const isFiltered = roleFilter !== 'all'
+  const roleMeta   = isFiltered ? ROLES.find((r) => r.key === roleFilter) : null
+  const dateRange  = fmtRange(sprint.start, sprint.end)
+
+  const header = isFiltered && roleMeta
+    ? `${ROLE_EMOJI[roleFilter] ?? '📋'} *${sprint.name} · ${roleMeta.label}*  _${dateRange}_`
+    : `📋 *${sprint.name}*  _${dateRange}_`
+
+  const lines = ids.map((id) => {
+    const task = tasks[id]
+    const url  = ticketUrl(task.ticket)
+    const ticketPart = url
+      ? `[<${url}|${task.ticket}>]`
+      : task.ticket && task.ticket !== '—' ? `[${task.ticket}]` : ''
+
+    if (isFiltered) {
+      const roleBlocks = blocks.filter((b) => b.taskId === id && b.role === roleFilter)
+      const totalMd    = roleBlocks.reduce((s, b) => s + b.mandays, 0)
+      const rawIdx     = roleBlocks.length
+        ? Math.max(...roleBlocks.map((b) => Math.ceil(b.start + b.mandays) - 1))
+        : -1
+      const endIdx  = Math.min(Math.max(rawIdx, 0), sprintDays.length - 1)
+      const endStr  = rawIdx >= 0 && sprintDays[endIdx] ? fmtDay(sprintDays[endIdx]) : '?'
+      return `- ${ticketPart ? ticketPart + ' ' : ''}${task.title}  _${fmtMd(totalMd)} md · ends ${endStr}_`
+    } else {
+      const parts = ROLES
+        .filter((r) => blocks.some((b) => b.taskId === id && b.role === r.key))
+        .map((r) => {
+          const total = blocks.filter((b) => b.taskId === id && b.role === r.key).reduce((s, b) => s + b.mandays, 0)
+          return `${r.short} ${fmtMd(total)}`
+        })
+      return `- ${ticketPart ? ticketPart + ' ' : ''}${task.title}  _${parts.join(' · ')}_`
+    }
+  })
+
+  const totalMd = ids.reduce((s, id) => {
+    const src = isFiltered
+      ? blocks.filter((b) => b.taskId === id && b.role === roleFilter)
+      : blocks.filter((b) => b.taskId === id)
+    return s + src.reduce((ss, b) => ss + b.mandays, 0)
+  }, 0)
+
+  const quips = ['ship it! 🚀', 'let\'s go! ✨', 'looking solid 🎯', 'we\'ve got this 💪']
+  const quip  = ids.length === 0 ? 'nothing here yet 👀' : quips[ids.length % quips.length]
+  const footer = `_${ids.length} task${ids.length !== 1 ? 's' : ''} · ${fmtMd(totalMd)} md — ${quip}_`
+
+  return [header, '', ...lines, '', footer].join('\n')
+}
+
 /* ---- Main page ---- */
 export default function TasksPage() {
   const store = useSprintStore()
@@ -328,6 +437,7 @@ export default function TasksPage() {
   const [query,      setQuery]      = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
   const [sort,       setSort]       = useState('order')
+  const [copied,     setCopied]     = useState(false)
 
   useEffect(() => { loadFromSupabase() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -340,6 +450,7 @@ export default function TasksPage() {
   }
 
   const { tasks, blocks, updateTask, setRoleEffort, addTask, deleteTask } = store
+  const sprintDays = workingDays(storeSprint.start, storeSprint.end)
 
   /* ---- derive list ---- */
   let ids = Object.keys(tasks)
@@ -364,6 +475,14 @@ export default function TasksPage() {
       count: Object.keys(tasks).filter((id) => roleTotal(blocks, id, r.key) > 0).length,
     })),
   ]
+
+  const handleExport = () => {
+    const text = buildChatMessage(ids, tasks, blocks, storeSprint, sprintDays, roleFilter)
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    })
+  }
 
   return (
     <div style={{ minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
@@ -459,6 +578,26 @@ export default function TasksPage() {
             </div>
             <RoleTabs items={filterItems} value={roleFilter} onChange={setRoleFilter} />
             <SortSelect value={sort} onChange={setSort} />
+            <button
+              onClick={handleExport}
+              title={copied ? 'Copied!' : 'Copy to Google Chat'}
+              style={{
+                display: 'inline-flex', alignItems: 'center', gap: 7,
+                border: '2.5px solid var(--ink)', borderRadius: 12,
+                padding: '9px 16px', cursor: 'pointer',
+                fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 14,
+                color: copied ? '#fff' : 'var(--ink)',
+                background: copied ? 'var(--mint)' : '#fff',
+                boxShadow: '2px 2px 0 var(--ink)',
+                transition: 'background 200ms, color 200ms, transform var(--dur-fast), box-shadow var(--dur-fast)',
+                whiteSpace: 'nowrap',
+              }}
+              onMouseEnter={(e) => { const el = e.currentTarget; el.style.transform = 'translate(-1px,-1px)'; el.style.boxShadow = '3px 3px 0 var(--ink)' }}
+              onMouseLeave={(e) => { const el = e.currentTarget; el.style.transform = ''; el.style.boxShadow = '2px 2px 0 var(--ink)' }}
+            >
+              <Icon name={copied ? 'check' : 'clipboard'} size={15} strokeWidth={2.6} />
+              {copied ? 'Copied!' : 'Export'}
+            </button>
           </div>
 
           {/* table */}

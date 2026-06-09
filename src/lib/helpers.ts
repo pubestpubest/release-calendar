@@ -12,9 +12,19 @@ export const ROW_H      = 44
 export const ROW_GAP    = 8
 export const LANE_PAD   = 14
 export const ROW_HEADER_W = 138
-export const DAY_W      = { compact: 80, comfy: 104, roomy: 132 } as const
+export const DAY_W      = { compact: 120, comfy: 160, roomy: 210 } as const
 export const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 export const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+/* ---------- ticket utilities ---------- */
+export function normalizeTicket(v: string): string {
+  const t = v.trim().replace(/^sm-?/i, '')
+  return t ? 'SM-' + t : ''
+}
+export function ticketUrl(ticket: string): string {
+  if (!ticket || ticket === '—') return ''
+  return `https://smilemigraineth.atlassian.net/browse/${ticket}`
+}
 
 /* ---------- date utilities ---------- */
 export function ymd(date: Date): string {

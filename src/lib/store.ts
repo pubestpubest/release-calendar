@@ -2,7 +2,7 @@
 
 import { create } from 'zustand'
 import type { SprintState, Sprint, Block, Role, Task } from './types'
-import { uid, parseMandays, workingDays, mondayOf, addDays, parseYmd, ymd, ROLES } from './helpers'
+import { uid, parseMandays, workingDays, mondayOf, addDays, parseYmd, ymd, ROLES, normalizeTicket, ticketUrl } from './helpers'
 import { createClient } from './supabase/client'
 
 interface StoreState extends SprintState {
@@ -51,7 +51,7 @@ async function dbUpsertSprint(sprint: Sprint) {
 }
 async function dbUpsertTask(task: Task, sprintId: string) {
   const supabase = db(); if (!supabase) return
-  await supabase.from('tasks').upsert({ id: task.id, sprint_id: sprintId, ticket: task.ticket, title: task.title })
+  await supabase.from('tasks').upsert({ id: task.id, sprint_id: sprintId, ticket: task.ticket, title: task.title, url: ticketUrl(task.ticket) })
 }
 async function dbDeleteTask(id: string) {
   const supabase = db(); if (!supabase) return
@@ -173,8 +173,9 @@ export const useSprintStore = create<StoreState>()((set, get) => ({
   },
 
   updateTask(id, patch) {
-    set((s) => ({ tasks: { ...s.tasks, [id]: { ...s.tasks[id], ...patch } } }))
-    dbUpsertTask({ ...get().tasks[id], ...patch }, get().sprint.id)
+    const applied = patch.ticket ? { ...patch, ticket: normalizeTicket(patch.ticket) || patch.ticket } : patch
+    set((s) => ({ tasks: { ...s.tasks, [id]: { ...s.tasks[id], ...applied } } }))
+    dbUpsertTask({ ...get().tasks[id], ...applied }, get().sprint.id)
   },
 
   setRoleEffort(taskId, role, str) {
@@ -211,7 +212,7 @@ export const useSprintStore = create<StoreState>()((set, get) => ({
         cursor[r.key] = start + m
       })
     })
-    const task: Task = { id, ticket, title }
+    const task: Task = { id, ticket: normalizeTicket(ticket) || ticket, title }
     const sprintId = s.sprint.id
     set((prev) => ({ tasks: { ...prev.tasks, [id]: task }, blocks: [...prev.blocks, ...newBlocks] }))
     // task must exist in DB before blocks (FK constraint) — await in sequence
