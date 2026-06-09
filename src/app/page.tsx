@@ -161,7 +161,7 @@ export default function CalendarPage() {
     )
   }
 
-  const { sprint, tasks, blocks, addTask, deleteTask, deleteBlock, moveBlock, updateSprint, clearAll } = store
+  const { sprint, tasks, blocks, addTask, deleteTask, deleteBlock, moveBlock, finishMoveBlock, updateSprint, clearAll } = store
 
   const days      = workingDays(sprint.start, sprint.end)
   const dayCount  = Math.max(days.length, 1)
@@ -238,7 +238,7 @@ export default function CalendarPage() {
               tasks={tasks} blocks={blocks} days={days} dayCount={dayCount}
               layout={layout} viz={viz} dayWidth={dayWidth}
               selectedTaskId={selectedTaskId} onSelectTask={setSelectedTaskId}
-              onMoveBlock={moveBlock} onDeleteBlock={deleteBlock}
+              onMoveBlock={moveBlock} onFinishMove={finishMoveBlock} onDeleteBlock={deleteBlock}
               todayIndex={todayIndex}
             />
           </div>

@@ -173,12 +173,21 @@ function AddRow({ onAdd }: { onAdd: (opts: { ticket: string; title: string; md: 
   const [ticket, setTicket] = useState('')
   const [title,  setTitle]  = useState('')
   const [md, setMd] = useState<Record<Role, string>>({ FE: '', BE: '', MO: '' })
+  const mdRef = useRef<Record<Role, string>>({ FE: '', BE: '', MO: '' })
+
+  const updateMd = (role: Role, v: string) => {
+    mdRef.current = { ...mdRef.current, [role]: v }
+    setMd({ ...mdRef.current })
+  }
 
   const submit = () => {
-    const hasMd = (['FE', 'BE', 'MO'] as Role[]).some((r) => parseMandays(md[r]).length > 0)
+    const current = mdRef.current
+    const hasMd = (['FE', 'BE', 'MO'] as Role[]).some((r) => parseMandays(current[r]).length > 0)
     if ((!title.trim() && !ticket.trim()) || !hasMd) return
-    onAdd({ ticket: ticket.trim() || '—', title: title.trim() || 'Untitled', md })
-    setTicket(''); setTitle(''); setMd({ FE: '', BE: '', MO: '' })
+    onAdd({ ticket: ticket.trim() || '—', title: title.trim() || 'Untitled', md: current })
+    setTicket(''); setTitle('')
+    setMd({ FE: '', BE: '', MO: '' })
+    mdRef.current = { FE: '', BE: '', MO: '' }
   }
 
   const inputBase: React.CSSProperties = {
@@ -206,7 +215,7 @@ function AddRow({ onAdd }: { onAdd: (opts: { ticket: string; title: string; md: 
         <RoleField
           key={r.key} role={r.label}
           value={md[r.key]} tint={r.tint} hex={r.hex}
-          onCommit={(v) => setMd((m) => ({ ...m, [r.key]: v }))}
+          onCommit={(v) => updateMd(r.key, v)}
         />
       ))}
       <div />

@@ -15,6 +15,7 @@ interface StoreState extends SprintState {
   deleteTask: (id: string) => void
   deleteBlock: (id: string) => void
   moveBlock: (id: string, start: number) => void
+  finishMoveBlock: (id: string, start: number) => void
   updateSprint: (patch: Partial<Sprint>) => void
   clearAll: () => void
 }
@@ -52,6 +53,17 @@ async function dbUpsertTask(task: Task, sprintId: string) {
 async function dbDeleteTask(id: string) {
   const supabase = db(); if (!supabase) return
   await supabase.from('tasks').delete().eq('id', id)
+}
+async function dbUpsertBlock(block: Block) {
+  const supabase = db(); if (!supabase) return
+  await supabase.from('blocks').upsert({
+    id: block.id, task_id: block.taskId, role: block.role,
+    mandays: block.mandays, start_day: block.start,
+  })
+}
+async function dbUpdateBlockStart(id: string, start: number) {
+  const supabase = db(); if (!supabase) return
+  await supabase.from('blocks').update({ start_day: start }).eq('id', id)
 }
 async function dbReplaceBlocks(taskId: string, role: Role, blocks: Block[]) {
   const supabase = db(); if (!supabase) return
@@ -167,14 +179,8 @@ export const useSprintStore = create<StoreState>()((set, get) => ({
         })
       })
       const task: Task = { id, ticket, title }
-      const sprintId = s.sprint.id
-      dbUpsertTask(task, sprintId)
-      const supabase = db()
-      if (supabase) {
-        for (const b of newBlocks) {
-          supabase.from('blocks').insert({ id: b.id, task_id: b.taskId, role: b.role, mandays: b.mandays, start_day: b.start })
-        }
-      }
+      dbUpsertTask(task, s.sprint.id)
+      newBlocks.forEach((b) => dbUpsertBlock(b))
       return { tasks: { ...s.tasks, [id]: task }, blocks: [...s.blocks, ...newBlocks] }
     })
   },
@@ -194,8 +200,11 @@ export const useSprintStore = create<StoreState>()((set, get) => ({
 
   moveBlock(id, start) {
     set((s) => ({ blocks: s.blocks.map((b) => b.id === id ? { ...b, start } : b) }))
-    const supabase = db()
-    if (supabase) supabase.from('blocks').update({ start_day: start }).eq('id', id)
+  },
+
+  finishMoveBlock(id, start) {
+    set((s) => ({ blocks: s.blocks.map((b) => b.id === id ? { ...b, start } : b) }))
+    dbUpdateBlockStart(id, start)
   },
 
   updateSprint(patch) {

@@ -98,22 +98,23 @@ interface BoardProps {
   selectedTaskId: string | null
   onSelectTask: (id: string | null) => void
   onMoveBlock: (id: string, start: number) => void
+  onFinishMove: (id: string, start: number) => void
   onDeleteBlock: (id: string) => void
   todayIndex: number
 }
 
 export default function Board({
   tasks, blocks, days, dayCount, layout, viz, dayWidth,
-  selectedTaskId, onSelectTask, onMoveBlock, onDeleteBlock, todayIndex,
+  selectedTaskId, onSelectTask, onMoveBlock, onFinishMove, onDeleteBlock, todayIndex,
 }: BoardProps) {
-  const drag = useRef<{ id: string; startX: number; orig: number; moved: boolean; mandays: number } | null>(null)
+  const drag = useRef<{ id: string; startX: number; orig: number; moved: boolean; mandays: number; lastRaw: number } | null>(null)
   const timelineW = dayCount * dayWidth
   const blockRadius = viz === 'calendar' ? 11 : 999
 
   const handlePointerDown = (e: React.PointerEvent, b: Block) => {
     if (e.button === 1 || e.button === 2) return
     ;(e.currentTarget as HTMLElement).setPointerCapture(e.pointerId)
-    drag.current = { id: b.id, startX: e.clientX, orig: b.start, moved: false, mandays: b.mandays }
+    drag.current = { id: b.id, startX: e.clientX, orig: b.start, moved: false, mandays: b.mandays, lastRaw: b.start }
   }
   const handlePointerMove = (e: React.PointerEvent) => {
     const d = drag.current; if (!d) return
@@ -122,11 +123,14 @@ export default function Board({
     let raw = d.orig + delta
     raw = Math.round(raw / SNAP) * SNAP
     raw = Math.max(0, Math.min(raw, dayCount - d.mandays))
-    onMoveBlock(d.id, Math.round(raw * 100) / 100)
+    raw = Math.round(raw * 100) / 100
+    d.lastRaw = raw
+    onMoveBlock(d.id, raw)
   }
   const handlePointerUp = (taskId: string | null) => {
     const d = drag.current
-    if (d && !d.moved) onSelectTask(taskId === selectedTaskId ? null : taskId)
+    if (d && d.moved) onFinishMove(d.id, d.lastRaw)
+    else if (d && !d.moved) onSelectTask(taskId === selectedTaskId ? null : taskId)
     drag.current = null
   }
 
