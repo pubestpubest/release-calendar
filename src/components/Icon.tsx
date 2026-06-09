@@ -5,6 +5,7 @@ const PATHS: Record<string, string> = {
   trash:        'M3 6h18M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M19 6l-1 14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2L4 6M10 11v6M14 11v6',
   chevronLeft:  'M15 18l-6-6 6-6',
   chevronRight: 'M9 18l6-6-6-6',
+  chevronDown:  'M6 9l6 6 6-6',
   calendar:     'M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z',
   columns:      'M4 4h16a1 1 0 0 1 1 1v14a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1zM9 4v16M15 4v16',
   gantt:        'M4 6h9M4 12h14M4 18h6',

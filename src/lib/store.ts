@@ -2,13 +2,16 @@
 
 import { create } from 'zustand'
 import type { SprintState, Sprint, Block, Role, Task } from './types'
-import { uid, parseMandays, workingDays, mondayOf, addDays, ymd, ROLES } from './helpers'
+import { uid, parseMandays, workingDays, mondayOf, addDays, parseYmd, ymd, ROLES } from './helpers'
 import { createClient } from './supabase/client'
 
 interface StoreState extends SprintState {
   loading: boolean
+  loaded: boolean
   // mutations
   loadFromSupabase: () => Promise<void>
+  createSprint: () => void
+  switchSprint: (id: string) => Promise<void>
   updateTask: (id: string, patch: Partial<{ ticket: string; title: string }>) => void
   setRoleEffort: (taskId: string, role: Role, str: string) => void
   addTask: (opts: { ticket: string; title: string; md: Record<Role, string> }) => void
@@ -28,7 +31,7 @@ function freshSprint(): Sprint {
 }
 
 function initialState(): SprintState {
-  return { sprint: freshSprint(), tasks: {}, blocks: [] }
+  return { sprint: freshSprint(), sprints: [], tasks: {}, blocks: [] }
 }
 
 /* ---- helpers ---- */
@@ -82,68 +85,90 @@ async function dbReplaceBlocks(taskId: string, role: Role, blocks: Block[]) {
   if (rows.length) await supabase.from('blocks').insert(rows)
 }
 
+/* ---- shared fetch for a sprint's tasks+blocks ---- */
+async function fetchSprintData(sprintId: string): Promise<{ tasks: Record<string, Task>; blocks: Block[] }> {
+  const supabase = db()
+  if (!supabase) return { tasks: {}, blocks: [] }
+
+  const { data: taskRows } = await supabase.from('tasks').select('*').eq('sprint_id', sprintId)
+  const tasks: Record<string, Task> = {}
+  const taskIds: string[] = []
+  if (taskRows) {
+    for (const row of taskRows) {
+      tasks[row.id] = { id: row.id, ticket: row.ticket, title: row.title }
+      taskIds.push(row.id)
+    }
+  }
+
+  const blocks: Block[] = []
+  if (taskIds.length > 0) {
+    const { data: blockRows } = await supabase.from('blocks').select('*').in('task_id', taskIds)
+    if (blockRows) {
+      for (const row of blockRows) {
+        blocks.push({
+          id: row.id, taskId: row.task_id, role: row.role as Role,
+          mandays: Number(row.mandays), start: Number(row.start_day),
+        })
+      }
+    }
+  }
+
+  return { tasks, blocks }
+}
+
 /* ---- store ---- */
 export const useSprintStore = create<StoreState>()((set, get) => ({
   ...initialState(),
   loading: true,
+  loaded: false,
 
   async loadFromSupabase() {
+    if (get().loaded) return  // already initialized — skip to avoid clobbering in-memory state on page navigation
     const supabase = db()
-    if (!supabase) { set({ loading: false }); return }
+    if (!supabase) { set({ loading: false, loaded: true }); return }
 
-    // fetch the most recent sprint
+    // fetch all sprints ordered oldest-first
     const { data: sprintRows } = await supabase
       .from('sprints')
       .select('*')
-      .order('created_at', { ascending: false })
-      .limit(1)
+      .order('created_at', { ascending: true })
 
+    let sprints: Sprint[]
     let sprint: Sprint
+
     if (sprintRows && sprintRows.length > 0) {
-      const row = sprintRows[0]
-      sprint = { id: row.id, name: row.name, start: row.start_date, end: row.end_date }
+      sprints = sprintRows.map((r) => ({ id: r.id, name: r.name, start: r.start_date, end: r.end_date }))
+      const savedId = typeof window !== 'undefined' ? localStorage.getItem('rc_sprint_id') : null
+      const saved = savedId ? sprints.find((s) => s.id === savedId) : null
+      sprint = saved ?? sprints[sprints.length - 1]
     } else {
-      // first run — create a sprint in Supabase
       sprint = freshSprint()
       await supabase.from('sprints').insert({ id: sprint.id, name: sprint.name, start_date: sprint.start, end_date: sprint.end })
+      sprints = [sprint]
     }
 
-    // fetch tasks for this sprint
-    const { data: taskRows } = await supabase
-      .from('tasks')
-      .select('*')
-      .eq('sprint_id', sprint.id)
+    const { tasks, blocks } = await fetchSprintData(sprint.id)
+    set({ sprint, sprints, tasks, blocks, loading: false, loaded: true })
+  },
 
-    const tasks: Record<string, Task> = {}
-    const taskIds: string[] = []
-    if (taskRows) {
-      for (const row of taskRows) {
-        tasks[row.id] = { id: row.id, ticket: row.ticket, title: row.title }
-        taskIds.push(row.id)
-      }
-    }
+  createSprint() {
+    const { sprints, sprint: current } = get()
+    const nextNum = sprints.length + 1
+    const lastEnd = parseYmd(current.end)
+    const start = mondayOf(addDays(lastEnd, 3))
+    const end = addDays(start, 11)
+    const sprint: Sprint = { id: uid('s'), name: `Sprint ${nextNum}`, start: ymd(start), end: ymd(end) }
+    dbUpsertSprint(sprint)
+    if (typeof window !== 'undefined') localStorage.setItem('rc_sprint_id', sprint.id)
+    set((s) => ({ sprint, sprints: [...s.sprints, sprint], tasks: {}, blocks: [] }))
+  },
 
-    // fetch blocks for all tasks
-    const blocks: Block[] = []
-    if (taskIds.length > 0) {
-      const { data: blockRows } = await supabase
-        .from('blocks')
-        .select('*')
-        .in('task_id', taskIds)
-
-      if (blockRows) {
-        for (const row of blockRows) {
-          blocks.push({
-            id: row.id,
-            taskId: row.task_id,
-            role: row.role as Role,
-            mandays: Number(row.mandays),
-            start: Number(row.start_day),
-          })
-        }
-      }
-    }
-
+  async switchSprint(id) {
+    const sprint = get().sprints.find((s) => s.id === id)
+    if (!sprint) return
+    set({ loading: true })
+    const { tasks, blocks } = await fetchSprintData(id)
+    if (typeof window !== 'undefined') localStorage.setItem('rc_sprint_id', id)
     set({ sprint, tasks, blocks, loading: false })
   },
 
@@ -219,7 +244,10 @@ export const useSprintStore = create<StoreState>()((set, get) => ({
     set((s) => {
       const sprint = { ...s.sprint, ...patch }
       dbUpsertSprint(sprint)
-      return { sprint }
+      return {
+        sprint,
+        sprints: s.sprints.map((sp) => sp.id === sprint.id ? sprint : sp),
+      }
     })
   },
 

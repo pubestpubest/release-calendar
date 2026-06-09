@@ -3,8 +3,9 @@
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import Icon from '@/components/Icon'
+import SprintSelector from '@/components/SprintSelector'
 import { useSprintStore } from '@/lib/store'
-import { ROLES, parseMandays, fmtMd, workingDays } from '@/lib/helpers'
+import { ROLES, parseMandays, fmtMd } from '@/lib/helpers'
 import type { Role } from '@/lib/types'
 
 /* ---- helpers ---- */
@@ -323,7 +324,7 @@ function SortSelect({ value, onChange }: { value: string; onChange: (v: string) 
 /* ---- Main page ---- */
 export default function TasksPage() {
   const store = useSprintStore()
-  const { loading, loadFromSupabase } = store
+  const { loading, loadFromSupabase, sprint: storeSprint, sprints } = store
   const [query,      setQuery]      = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
   const [sort,       setSort]       = useState('order')
@@ -338,7 +339,7 @@ export default function TasksPage() {
     )
   }
 
-  const { sprint, tasks, blocks, updateTask, setRoleEffort, addTask, deleteTask } = store
+  const { tasks, blocks, updateTask, setRoleEffort, addTask, deleteTask } = store
 
   /* ---- derive list ---- */
   let ids = Object.keys(tasks)
@@ -379,26 +380,29 @@ export default function TasksPage() {
           </svg>
           <div>
             <div style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 21, color: 'var(--ink)', lineHeight: 1, whiteSpace: 'nowrap' }}>Task list</div>
-            <div style={{ fontFamily: 'var(--font-hand)', fontSize: 16, color: 'var(--grape)', lineHeight: 1.1, whiteSpace: 'nowrap' }}>everything in {sprint.name}, tidy</div>
+            <div style={{ fontFamily: 'var(--font-hand)', fontSize: 16, color: 'var(--grape)', lineHeight: 1.1, whiteSpace: 'nowrap' }}>everything in {storeSprint.name}, tidy</div>
           </div>
         </div>
-        <Link
-          href="/"
-          style={{
-            marginLeft: 'auto', textDecoration: 'none',
-            display: 'inline-flex', alignItems: 'center', gap: 8,
-            background: 'var(--blue)', color: '#fff',
-            border: '3px solid var(--ink)', borderRadius: 12,
-            padding: '9px 16px',
-            fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15,
-            boxShadow: '3px 3px 0 var(--ink)', whiteSpace: 'nowrap',
-            transition: 'transform var(--dur-fast), box-shadow var(--dur-fast)',
-          }}
-          onMouseEnter={(e) => { const el = e.currentTarget; el.style.transform = 'translate(-2px,-2px)'; el.style.boxShadow = '5px 5px 0 var(--ink)' }}
-          onMouseLeave={(e) => { const el = e.currentTarget; el.style.transform = ''; el.style.boxShadow = '3px 3px 0 var(--ink)' }}
-        >
-          <Icon name="calendar" size={17} /> Open calendar <Icon name="arrowRight" size={16} />
-        </Link>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 10, flex: '0 0 auto' }}>
+          <SprintSelector sprints={sprints} current={storeSprint} onSwitch={store.switchSprint} onCreate={store.createSprint} />
+          <Link
+            href="/"
+            style={{
+              textDecoration: 'none',
+              display: 'inline-flex', alignItems: 'center', gap: 8,
+              background: 'var(--blue)', color: '#fff',
+              border: '3px solid var(--ink)', borderRadius: 12,
+              padding: '9px 16px',
+              fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 15,
+              boxShadow: '3px 3px 0 var(--ink)', whiteSpace: 'nowrap',
+              transition: 'transform var(--dur-fast), box-shadow var(--dur-fast)',
+            }}
+            onMouseEnter={(e) => { const el = e.currentTarget; el.style.transform = 'translate(-2px,-2px)'; el.style.boxShadow = '5px 5px 0 var(--ink)' }}
+            onMouseLeave={(e) => { const el = e.currentTarget; el.style.transform = ''; el.style.boxShadow = '3px 3px 0 var(--ink)' }}
+          >
+            <Icon name="calendar" size={17} /> Open calendar <Icon name="arrowRight" size={16} />
+          </Link>
+        </div>
       </header>
 
       <div className="sm-dots" style={{ flex: 1, padding: '24px 26px 60px', overflowY: 'auto' }}>

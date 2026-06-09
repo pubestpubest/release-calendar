@@ -32,6 +32,7 @@ export interface Block {
 
 export interface SprintState {
   sprint: Sprint
+  sprints: Sprint[]
   tasks: Record<string, Task>
   blocks: Block[]
 }

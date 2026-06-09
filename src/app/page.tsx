@@ -5,6 +5,7 @@ import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import Icon from '@/components/Icon'
 import TaskPanel from '@/components/TaskPanel'
+import SprintSelector from '@/components/SprintSelector'
 import { useSprintStore } from '@/lib/store'
 import { ROLES, computeLayout, roleStats, workingDays, ymd, fmtMd, DAY_W } from '@/lib/helpers'
 import type { Role } from '@/lib/types'
@@ -196,10 +197,7 @@ export default function CalendarPage() {
           </div>
         </div>
 
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 8, background: 'var(--ink)', color: '#fff', borderRadius: 999, padding: '6px 14px', boxShadow: '2px 2px 0 var(--ink)', flex: '0 0 auto', whiteSpace: 'nowrap' }}>
-          <Icon name="calendar" size={15} />
-          <span style={{ fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: 14 }}>{sprint.name}</span>
-        </div>
+        <SprintSelector sprints={store.sprints} current={sprint} onSwitch={store.switchSprint} onCreate={store.createSprint} />
 
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
           {ROLES.map((r) => (
