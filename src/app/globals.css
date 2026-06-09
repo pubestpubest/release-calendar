@@ -1,26 +1,105 @@
+@import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Caveat:wght@500;600;700&family=Nunito:ital,wght@0,400;0,500;0,600;0,700;0,800;1,600;1,700&family=DM+Mono:wght@400;500&display=swap');
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  /* Ink */
+  --ink:        #211B3B;
+  --ink-soft:   #4A4266;
+  --ink-faint:  #8079A0;
+
+  /* Canvas */
+  --cream:      #FFF6E9;
+  --cream-deep: #FFEFD8;
+  --cream-sunk: #FBE9CF;
+
+  /* Pink */
+  --pink-100: #FFD9EB;
+  --pink-300: #FF8FC4;
+  --pink:     #FF3E9A;
+  --pink-600: #E61E80;
+  --pink-700: #BD1268;
+
+  /* Blue */
+  --blue-100: #D6E2FF;
+  --blue-300: #84A6FF;
+  --blue:     #2E6BFF;
+  --blue-600: #1B50D6;
+  --blue-700: #143CA3;
+
+  /* Yellow */
+  --yellow-100: #FFF1C2;
+  --yellow-300: #FFE27A;
+  --yellow:     #FFD12E;
+  --yellow-600: #F2B705;
+
+  /* Mint */
+  --mint-100: #C8F6E9;
+  --mint:     #3DD9B0;
+  --mint-600: #18B68C;
+
+  /* Grape */
+  --grape-100: #E5DBFF;
+  --grape:     #8A5BFF;
+  --grape-600: #6B38E6;
+
+  /* Coral */
+  --coral-100: #FFE0D2;
+  --coral:     #FF7A45;
+
+  /* Tomato */
+  --tomato-100: #FFD7D7;
+  --tomato:     #FF4D4D;
+  --tomato-600: #E02B2B;
+
+  /* Typography */
+  --font-display: 'Fredoka', 'Trebuchet MS', system-ui, sans-serif;
+  --font-hand:    'Caveat', 'Comic Sans MS', cursive;
+  --font-body:    'Nunito', system-ui, -apple-system, sans-serif;
+  --font-mono:    'DM Mono', ui-monospace, monospace;
+
+  /* Effects */
+  --stroke: 3px solid var(--ink);
+  --shadow-xs:  2px 2px 0 var(--ink);
+  --shadow-sm:  3px 3px 0 var(--ink);
+  --shadow:     4px 4px 0 var(--ink);
+  --shadow-md:  6px 6px 0 var(--ink);
+  --shadow-lg:  8px 8px 0 var(--ink);
+
+  --radius-xs:   6px;
+  --radius-sm:   10px;
+  --radius-md:   14px;
+  --radius-lg:   18px;
+  --radius-xl:   24px;
+  --radius-pill: 999px;
+
+  --ease-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-out:    cubic-bezier(0.22, 1, 0.36, 1);
+  --dur: 200ms;
+  --dur-fast: 120ms;
+
+  --dot-color: rgba(33, 27, 59, 0.10);
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  background: var(--cream);
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+::selection { background: var(--yellow-300); color: var(--ink); }
+
+.sm-dots {
+  background-image: radial-gradient(var(--dot-color) 2px, transparent 2px);
+  background-size: 22px 22px;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+.sm-sticker {
+  border: var(--stroke);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  background: #fff;
 }
