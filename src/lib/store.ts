@@ -54,6 +54,14 @@ async function dbDeleteTask(id: string) {
   const supabase = db(); if (!supabase) return
   await supabase.from('tasks').delete().eq('id', id)
 }
+async function dbDeleteBlock(id: string) {
+  const supabase = db(); if (!supabase) return
+  await supabase.from('blocks').delete().eq('id', id)
+}
+async function dbClearAllTasks(ids: string[]) {
+  const supabase = db(); if (!supabase) return
+  for (const id of ids) await supabase.from('tasks').delete().eq('id', id)
+}
 async function dbUpsertBlock(block: Block) {
   const supabase = db(); if (!supabase) return
   await supabase.from('blocks').upsert({
@@ -196,6 +204,7 @@ export const useSprintStore = create<StoreState>()((set, get) => ({
 
   deleteBlock(id) {
     set((s) => ({ blocks: s.blocks.filter((b) => b.id !== id) }))
+    dbDeleteBlock(id)
   },
 
   moveBlock(id, start) {
@@ -203,7 +212,6 @@ export const useSprintStore = create<StoreState>()((set, get) => ({
   },
 
   finishMoveBlock(id, start) {
-    set((s) => ({ blocks: s.blocks.map((b) => b.id === id ? { ...b, start } : b) }))
     dbUpdateBlockStart(id, start)
   },
 
@@ -217,13 +225,7 @@ export const useSprintStore = create<StoreState>()((set, get) => ({
 
   clearAll() {
     set((s) => {
-      // delete all tasks from Supabase (blocks cascade)
-      const supabase = db()
-      if (supabase) {
-        for (const id of Object.keys(s.tasks)) {
-          supabase.from('tasks').delete().eq('id', id)
-        }
-      }
+      dbClearAllTasks(Object.keys(s.tasks))
       return { tasks: {}, blocks: [] }
     })
   },
